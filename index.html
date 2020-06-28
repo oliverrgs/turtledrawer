@@ -1,0 +1,427 @@
+
+<html  lang="en" class="theme--default">
+	<head>
+		<link rel="icon" type="image/png" href="/doggo.png"/>
+		<script type="text/javascript" src="./jquery-3.3.1.js"></script>
+		<script type="text/javascript" src="./scripts.js"></script>
+		<style type="text/css">
+
+			td {vertical-align: top;}
+			#drawfield div {
+				text-align:right;
+			}
+			#drawfield {
+				width:500px;
+				height:500px;
+			border:2px solid black;
+			border-radius:10px;
+			background-color: rgb(237, 255, 255);
+			position:relative;
+
+			}
+			.turleGal {
+				margin-top: -15px;
+				margin-right: -3px;
+			}
+			body {
+				background-image: url('background.png');
+				text-align:center;
+				padding:20px;
+			}
+			.CodeMirror {min-height:700px;
+			border:2px solid black;
+			border-radius:10px;
+			}
+			.headertext {
+			border:2px solid black;
+			border-radius:10px;
+			background-color: white;
+			width: 200px;
+			margin: auto;
+			font-size:1.2rem;
+
+			}
+		</style>
+		
+		<script src="./react.development.js"></script>
+		<script src="./react-dom.development.js"></script>
+		<script src="./codemirror-lib/codemirror.js"></script>
+		<link rel="stylesheet" type="text/css" href="./codemirror-lib/codemirror.css"/>
+		
+		<!-- Don't use this in production: -->
+		<script src="./babel.js"></script>
+		<script type="text/babel">
+			function assert(condition, message) {
+				if (!condition) {
+					message = message || "Assertion failed";
+					if (typeof Error !== "undefined") {
+						throw new Error(message);
+					}
+					throw message; // Fallback
+				}
+			}
+		  
+		class TurtleWrite extends React.Component {
+			constructor(props) {
+				super(props);
+				this.state = {
+					rawTextinput: '',
+					errorList: {},
+					linecount: 0,
+					styleList: []
+				}
+				this.handleChange = this.handleChange.bind(this);
+			}
+
+			render(){
+				var parent = this;
+				return(<table style={{'width':'100%'}}><tbody><tr>
+				
+						<td colSpan="2" style={{'width':'100%'}}>
+								<div id="drawfield" >
+								{
+									parent.state.styleList.map(function(onestyle, iiii){
+										return 	<div style={onestyle} key={iiii}>
+												{iiii==(parent.state.styleList.length-1)?
+												<img className="turleGal" src="turtlecursor.png"/>
+												:''}
+											</div>
+										
+									})
+								}
+								</div>
+
+						</td>
+						</tr>
+						<tr>
+						<td style={{'width':'50%'}}>
+						<textarea  style={{'width':'100%','height':'600px'}} value={this.state.rawTextinput} 
+							name="rawTextinput" id="rawTextinput" onChange={this.handleChange}  onClick={this.handleChange} >
+							</textarea>
+
+						</td>
+						<td style={{'width':'50%'}}>
+							{Array.from(Array(this.state.linecount).keys()).map(function(linenumber, iiii){
+								return <div style={{'height':'.97rem'}} key={iiii}>&nbsp;
+									{parent.state.errorList[linenumber+1] &&
+										linenumber+1 + ':' + parent.state.errorList[linenumber+1]
+									}
+								</div>
+							})}
+						</td>
+						</tr></tbody></table>
+				)
+			}
+			isnonmacro(line){
+				line=line.trim();
+				var hasmatch=false;
+				if(line == ""){
+					hasmatch = true;
+				} else if(line.match(/^forward\(\d+\)$/)){
+					hasmatch = true;
+				}else if(line.match(/^left\(\)$/)){
+					hasmatch = true;
+				}else if(line.match(/^right\(\)$/)){
+					hasmatch = true;
+				}else if(line.match(/^color\(\w+\)$/)){
+					hasmatch = true;
+				}
+				return hasmatch;
+			}
+			verifysyntax(macroList,errorList,rawinput){
+				var linenumber =0;
+				for(var line of rawinput.split("\n")){
+					line=line.trim();
+					
+					var hasmatch = false;
+					linenumber++;
+					if(this.isnonmacro(line) ){
+					    hasmatch = true;
+					} else if(line.match(/^\)$/)){
+						hasmatch = true;
+					}else if(line.match(/^macro\W+\w+\W*\($/ )){
+						hasmatch = true;
+						
+					} else if(line.match(/^\w+\(\)$/)){
+						hasmatch = true;
+						var myfunction = line.match(/^\W*\w+\(\)\W*$/)[0].split("(")[0].trim();
+						if(macroList.indexOf(myfunction)<0){
+							errorList[linenumber] = "Undefined function: "+myfunction;
+							
+						}
+					}
+					if(!hasmatch){
+						
+						
+						errorList[linenumber] = "Invalid basic syntax: "+line;
+						
+						
+					}
+				}
+			}
+			macroSetup(macroList,errorList,rawinput,macroDefinitions){
+				var linenumber =0;
+				var startParenthesis=false;
+				var lastMacro = "";
+				for(var line of rawinput.split("\n") ){
+					linenumber++;
+					var onemacro = line.match(/macro\W+\w+/ );
+					if(onemacro){
+						if(startParenthesis){
+							errorList[linenumber] = "No nesting parenthesis: "+line;
+						}
+						startParenthesis = true;
+						var newMacro = onemacro[0].split(/\W+/)[1];
+                        if(['left','right','forward','macro'].indexOf(newMacro) >=0 ){
+							errorList[linenumber]="Macro is reserve word: "+newMacro;
+						
+						}
+						if(macroList.indexOf(newMacro) >= 0){
+							errorList[linenumber]="Macro defined twice: "+newMacro;
+						}
+						lastMacro=newMacro;
+						macroDefinitions[lastMacro]="";
+						macroList.push(newMacro );
+					} else if(line.match(/^\W*\)\W*$/ ) ){
+						if(!startParenthesis){
+							errorList[linenumber] = "Extra end parenthesis: "+line;
+						}
+						lastMacro="";
+						startParenthesis=false;
+					} else {
+						//not a macro code, can only be code inside a macro
+                            
+						if(lastMacro){
+							macroDefinitions[lastMacro]+=line+"\n";
+                            
+						}
+					}
+				}
+				if(startParenthesis){
+					errorList[linenumber] = "Need an ending parenthesis ";
+					
+				}
+			}
+			writeimage(macroDefinitions,rawinput){
+				
+				var finalString = "";
+				var ignore = false;
+				for(var line of rawinput.split("\n") ){
+					line=line.trim();
+					
+					if(this.isnonmacro(line) ){
+						if(!ignore){
+					    	finalString+=line+"\n";
+				
+						}
+					} else if(line.match(/^\W*\)\W*$/)){
+						ignore=false;
+						
+					}else if(line.match(/^macro\W+\w+\W*\($/ )){
+						ignore=true;
+						
+					} else if(line.match(/^\w+\(\)$/)){
+						
+							
+						if(!ignore){
+							var myfunction = line.match(/^\w+\(\)\W*$/)[0].split("(")[0].trim();
+							finalString+=macroDefinitions[myfunction]+"\n";
+				
+							
+						}
+					} 
+				}
+				var angle = 0;
+				var styleList=[];
+				var color = "black";
+				var baseX = 250;
+				var baseY = 250;
+				for(var line of finalString.split("\n")){
+					line = line.trim();
+					
+					if(line == ""){
+						continue;
+					} else if(line.match(/^forward\(\d+\)$/)){
+						var length = parseInt(line.match(/\d+/)[0]);
+						styleList.push({
+							'backgroundColor':color,
+  							'transform': 'rotate('+angle+'deg)',
+							'height':'1px',
+							'width': length+'px',
+							'position': 'absolute',
+							'left': baseX +'px',
+							'top': (baseY + ((angle==180)?1:0))+'px',
+							'transformOrigin':'0px 0px'
+
+						});
+						var angleRadians = angle*(Math.PI / 180);
+						baseX += Math.round(Math.cos(angleRadians)*length);
+						console.log('baseX: ', baseX);
+						
+						baseY += Math.round(Math.sin(angleRadians)*length);
+						console.log('baseY: ', baseY);
+						
+
+					}else if(line.match(/^left\(\)$/)){
+						angle=(angle - 90)%360;
+					}else if(line.match(/^right\(\)$/)){
+						angle=(angle + 90)%360;
+					}else if(line.match(/^color\(\w+\)$/)){
+						color = line.match(/\w+/g)[1];
+					}
+				}
+				
+				styleList.push({
+						'backgroundColor':color,
+						'transform': 'rotate('+angle+'deg)',
+						'height':'1px',
+						'width': '0px',
+						'position': 'absolute',
+						'left': baseX +'px',
+						'top': (baseY + ((angle==180)?1:0))+'px',
+						'transformOrigin':'0px 0px'
+
+					});
+				this.setState({styleList:styleList})
+				
+			}
+			validateInput(rawinput){
+				
+				var macroList = [];
+				var macroDefinitions = {};
+				var errorList = {};
+
+				//STAGE 1: figure out all the macro stuff
+				this.macroSetup(macroList,errorList,rawinput,macroDefinitions);
+						
+				//STAGE 2: Syntax validation
+				this.verifysyntax(macroList,errorList,rawinput);
+				//STAGE 3: The magic happens
+				this.writeimage(macroDefinitions,rawinput);
+
+				
+				
+				this.setState({errorList: errorList, linecount: rawinput.split("\n").length});
+				
+				return errorList;
+				
+				
+			}
+			handleChange(e) {
+				// If you are using babel, you can use ES 6 dictionary syntax
+				// let change = { [e.target.name] = e.target.value }
+				let change = {}
+				change[e.target.name] = e.target.value
+				if($(e.target).attr("maxint")){
+					var maxInt = parseInt($(e.target).attr("maxint"));
+					if(parseInt(change[e.target.name]) > maxInt){
+						change[e.target.name]= maxInt;
+					}
+				}
+				this.validateInput(change.rawTextinput)
+				
+				this.setState(change)
+			}
+		};
+		ReactDOM.render(
+			<TurtleWrite />,
+			document.getElementById('MAINBODY')
+		);
+		  
+		
+		//   setTimeout(function(){
+
+		// 	  $("textarea").val("macro foo (\n"+
+		// 		"       forward(231)\n"+
+		// 		"       right()\n"+
+		// 		")\n"+
+		// 		"foo()\n"+
+		// 		"forward(50)\n"+
+		// 		"color(blue)\n"+
+		// 		"right()\n"+
+		// 		"forward(50)\n"+
+		// 		"color(red)\n"+
+		// 		"forward(50)\n"+
+		// 		"left()\n"+
+		// 		"color(salmon)\n"+
+		// 		"forward(150)\n"+
+		// 		"right()\n"+
+		// 		"forward(100)\n"+
+		// 		"right()\n"+
+		// 		"forward(300)");
+		// 		$("textarea").first().change();
+		//   },520
+		//   )
+
+		</script>
+		<script src="./tests.js"></script>
+		
+		<script type="text/javascript">
+			$(document).ready(function(){
+				
+				var editor = CodeMirror.fromTextArea(document.getElementById("rawTextinput"), {
+					lineNumbers: true,
+					mode: "javascript",
+					matchBrackets: true
+				});
+				editor.on('change', function(e) {
+					
+					$("#rawTextinput").val(editor.getValue());
+					$("#rawTextinput").click();
+				});
+				setTimeout(function(){
+					
+					$("#rawTextinput").click();
+				},10)
+				// setTimeout(function(){
+				// 	$('.CodeMirror').keypress(function(){
+				// 		
+				// 		$("#rawTextinput").text($('.CodeMirror textarea').text());
+
+				// 	})
+				// },10)
+			});
+		</script>
+	</head>
+	<body>
+		<div class="header">
+			<div class="headerContent" style="background-image: url('./titleimage.png');padding:50px;
+			background-repeat: no-repeat;
+			background-position:50% 50%;">
+				<div class="headertext">TURTLE DRAWER</div>
+			</div>
+		</div>
+		<div id="MAINBODY" >
+		</div>
+		<br/>
+		<br/>
+		<br/>
+		<br/>
+		<br/>
+		<br/>
+		<br/>
+		<br/>
+		<br/>
+		<br/>
+		<br/>
+		<br/>
+		<br/>
+
+
+
+
+
+
+
+
+
+		
+			<div style="text-align:center;margin-top:200px;">
+				<a href="https://www.youtube.com/watch?v=Ew1U123UgEA">
+					<img  style="margin:auto;border:20px outset;border-radius:30px;" src="./dreams.jpg"/>
+				</a>
+			</div>
+			
+			<br/><br/><br/><br/><br/>
+	</body>
+<html>

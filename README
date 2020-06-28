@@ -1,0 +1,16 @@
+This turtle drawer is my submission for the logo writer.
+
+To run it, just open index.html.
+
+Architecturally it is coded as a proof of concept/fast coding project. I eschewed things like version control, npm and separate files as these are slowdowns in such a small project. As such it's a single file react app. The major difficulty was syntax, and as such there's a multi-pass syntax filterer, which checks for macros, errors, then replaces macros.  Once that was done things like doing the actual drawing were simple.
+
+From a UX perspective I wanted it to be easy to see changes, it is essentially a WYSIWYG type of editor.
+
+example input:
+forward(10)
+left()
+forward(20)
+color(blue)
+left()
+forward(200)
+right()
